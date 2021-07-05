@@ -10,9 +10,7 @@ function isTimeLimit(timeLimit){
 }
 
 function isValidConfigs(configs){
-    if(isUrl(configs.url) && isTimeLimit(configs.timeLimit)){
-        return true;
-    }
+    return (isUrl(configs.url) && isTimeLimit(configs.timeLimit));
 }
 
 module.exports = {
