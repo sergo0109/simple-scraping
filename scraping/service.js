@@ -5,6 +5,7 @@ const configs = require('../manualConfigs')
 const Browser = require('../browser/browser')
 
 async function getUrlsWithStatusCodes(browser,url,timeLimit) {
+    const hostName = (new URL(url)).hostname;
     const urlsWithStatusCodes = [];
     let page;
 
@@ -47,7 +48,10 @@ async function getUrlsWithStatusCodes(browser,url,timeLimit) {
 
             for (const link of links) {
                 if (validator.isUrl(link)) {
-                    urls.add(link);
+                    const currentURL = new URL(link);
+                    if(currentURL.hostname === hostName) {
+                        urls.add(currentURL);
+                    }
                 }
             }
         }
