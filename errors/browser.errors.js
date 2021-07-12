@@ -10,8 +10,13 @@ function openPageError(url,error){
     console.log("errors.couldNotOpenPage",url,error);
 }
 
+function getValueError(url,error){
+    console.log("errors.couldNotGetValue",url,error);
+}
+
 module.exports = {
     browserCreationError,
     newPageCreationError,
     openPageError,
+    getValueError,
 }
