@@ -3,61 +3,110 @@ const validator = require('../validators/validators');
 const configErrors = require('../errors/manual-configs.errors')
 const configs = require('../manualConfigs')
 const Browser = require('../browser/browser')
+const _ = require('lodash')
+
 
 async function getUrlsWithStatusCodes(browser,url,timeLimit) {
-    const hostName = (new URL(url)).hostname;
+    const firstUrl = new URL(url)
+    const hostName = firstUrl.hostname;
     const urlsWithStatusCodes = [];
-    let page;
+    const urls = new Set();
+    urls.add(firstUrl);
+    let i = 0;
+    let functionCount = 0;
 
-    try {
-        page = await browser.newPage();
-    } catch (err) {
-        browserErrors.newPageCreationError(err)
-    }
+    while(i < urls.size) {
+        if ((i < functionCount && i === urls.size - 1) || urls.size === 1) {
+            const url = [...urls.values()][i];
 
-    if (page) {
-        const urls = new Set();
-        urls.add(url);
-
-        while (urls.size > 0){
-            const url = [...urls.values()][0];
-            let httpResponse;
+            let page;
 
             try {
-                httpResponse = await page.goto(url, {
-                    waitUntil: 'networkidle2',
-                    timeout: timeLimit
-                });
+                page = await browser.newPage();
             } catch (err) {
-                browserErrors.openPageError(url, err)
+                browserErrors.newPageCreationError(err);
             }
 
-            let statusCode;
+            if (page) {
+                functionCount++;
+                let httpResponse;
 
-            if(httpResponse){
-                statusCode = httpResponse.status();
-            }
+                try {
+                    httpResponse = await page.goto(url.href, {
+                        waitUntil: 'networkidle2',
+                        timeout: timeLimit
+                    })
+                }catch(err){
+                    browserErrors.openPageError(url.href, err);
+                }
 
-            if (statusCode) {
-                urlsWithStatusCodes.push({ statusCode: statusCode, url: url });
-            }
+                const links = await page.$$eval('a', as => as.map(a => a.href)).catch(err => {
+                    browserErrors.getValueError(url.href, err);
+                });
 
-            urls.delete(url);
+                if (!_.isEmpty(links)) {
+                    for (const link of links) {
+                        if (validator.isUrl(link)) {
+                            const currentURL = new URL(link);
+                            if (currentURL.hostname === hostName) {
+                                urls.add(currentURL);
+                            }
+                        }
+                    }
+                }
 
-            const links = await page.$$eval('a', as => as.map(a => a.href));
-
-            for (const link of links) {
-                if (validator.isUrl(link)) {
-                    const currentURL = new URL(link);
-                    if(currentURL.hostname === hostName) {
-                        urls.add(currentURL);
+                if (httpResponse) {
+                    const status = httpResponse.status();
+                    if (status) {
+                        urlsWithStatusCodes.push({statusCode: status, url: url.href});
                     }
                 }
             }
-        }
-           await page.close();
-    }
+        } else {
+            const url = [...urls.values()][i];
 
+            let page;
+
+            try {
+                page = await browser.newPage();
+            } catch (err) {
+                browserErrors.newPageCreationError(err);
+                break;
+            }
+
+            if (page) {
+                functionCount++;
+                page.goto(url.href, {
+                    waitUntil: 'networkidle2',
+                    timeout: timeLimit
+                }).then(httpResponse => {
+                    if (httpResponse.status()) {
+                        urlsWithStatusCodes.push({statusCode: httpResponse.status(), url: url.href});
+                    }
+                }).catch(err => {
+                    browserErrors.openPageError(url.href, err);
+                }).then(() => {
+                    return page.$$eval('a', as => as.map(a => a.href)).catch(err => {
+                        browserErrors.getValueError(url.href, err);
+                    }).then(links => {
+                        if (!_.isEmpty(links)) {
+                            for (const link of links) {
+                                if (validator.isUrl(link)) {
+                                    const currentURL = new URL(link);
+                                    if (currentURL.hostname === hostName) {
+                                        urls.add(currentURL);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }).finally(() => {
+                    page.close();
+                    i++;
+                });
+            }
+        }
+    }
     return urlsWithStatusCodes;
 }
 
@@ -72,11 +121,10 @@ async function printUrlsWithStatusCodes(){
 
                 const urlsWithStatusCodes = await getUrlsWithStatusCodes(browser, url, timeLimit);
 
-                if (urlsWithStatusCodes.length !== 0) {
-                    console.log("ALL URLS WITH STATUS CODES : ", urlsWithStatusCodes,
-                        "COUNT OF All URLS WITH STATUS CODES : ", urlsWithStatusCodes.length);
 
-                }
+                console.log("ALL URLS WITH STATUS CODES : ", urlsWithStatusCodes,
+                    "COUNT OF All URLS WITH STATUS CODES : ", urlsWithStatusCodes.length);
+
             } catch (err) {
                 console.log(err)
             }
