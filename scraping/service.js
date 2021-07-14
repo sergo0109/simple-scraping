@@ -14,11 +14,13 @@ async function getUrlsWithStatusCodes(browser,url,timeLimit) {
     urls.add(firstUrl);
     let i = 0;
     const functions =[];
+    let shiftFunctionsCount = 0;
 
     while(i < urls.size) {
-        if (i < functions.length && i === urls.size - 1) {
+        if (i < functions.length + shiftFunctionsCount && i === urls.size - 1) {
             await functions[0];
             functions.shift();
+            shiftFunctionsCount++;
         } else {
             const url = [...urls.values()][i];
 
@@ -63,7 +65,6 @@ async function getUrlsWithStatusCodes(browser,url,timeLimit) {
             }
         }
     }
-    await Promise.all(functions);
     return urlsWithStatusCodes;
 }
 
