@@ -13,55 +13,12 @@ async function getUrlsWithStatusCodes(browser,url,timeLimit) {
     const urls = new Set();
     urls.add(firstUrl);
     let i = 0;
-    let functionCount = 0;
+    const functions =[];
 
     while(i < urls.size) {
-        if ((i < functionCount && i === urls.size - 1) || urls.size === 1) {
-            const url = [...urls.values()][i];
-
-            let page;
-
-            try {
-                page = await browser.newPage();
-            } catch (err) {
-                browserErrors.newPageCreationError(err);
-            }
-
-            if (page) {
-                functionCount++;
-                let httpResponse;
-
-                try {
-                    httpResponse = await page.goto(url.href, {
-                        waitUntil: 'networkidle2',
-                        timeout: timeLimit
-                    })
-                }catch(err){
-                    browserErrors.openPageError(url.href, err);
-                }
-
-                const links = await page.$$eval('a', as => as.map(a => a.href)).catch(err => {
-                    browserErrors.getValueError(url.href, err);
-                });
-
-                if (!_.isEmpty(links)) {
-                    for (const link of links) {
-                        if (validator.isUrl(link)) {
-                            const currentURL = new URL(link);
-                            if (currentURL.hostname === hostName) {
-                                urls.add(currentURL);
-                            }
-                        }
-                    }
-                }
-
-                if (httpResponse) {
-                    const status = httpResponse.status();
-                    if (status) {
-                        urlsWithStatusCodes.push({statusCode: status, url: url.href});
-                    }
-                }
-            }
+        if (i < functions.length && i === urls.size - 1) {
+            await functions[0];
+            functions.shift();
         } else {
             const url = [...urls.values()][i];
 
@@ -75,8 +32,7 @@ async function getUrlsWithStatusCodes(browser,url,timeLimit) {
             }
 
             if (page) {
-                functionCount++;
-                page.goto(url.href, {
+                functions.push(page.goto(url.href, {
                     waitUntil: 'networkidle2',
                     timeout: timeLimit
                 }).then(httpResponse => {
@@ -103,10 +59,11 @@ async function getUrlsWithStatusCodes(browser,url,timeLimit) {
                 }).finally(() => {
                     page.close();
                     i++;
-                });
+                }));
             }
         }
     }
+    await Promise.all(functions);
     return urlsWithStatusCodes;
 }
 
